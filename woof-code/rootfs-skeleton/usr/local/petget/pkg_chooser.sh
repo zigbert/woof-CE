@@ -19,11 +19,11 @@ HELPFILE="/usr/local/petget/help.htm"
 # Do not allow another instance
 sleep 0.3
 [ "$( ps | grep -E '/usr/local/bin/ppm|/usr/local/petget/pkg_chooser' | grep -v -E 'grep|geany|leafpad' | wc -l)" -gt 2 ] \
-	&& /usr/lib/gtkdialog/box_splash -timeout 3 -bg red -text "$(gettext 'PPM is already running. Exiting.')" \
+	&& . /usr/lib/gtkdialog/box_splash -timeout 3 -bg red -text "$(gettext 'PPM is already running. Exiting.')" \
 		&& exit 0
 
 # Set the skip-space flag
-if [ "$(cat /var/local/petget/sc_category)" = "true" ] && \
+if [ "$(cat /var/local/petget/sc_category 2>/dev/null)" = "true" ] && \
 	[ "$(cat /tmp/pup_event_sizefreem | head -n 1 )" -gt 4000 ]; then
 	touch /root/.packages/skip_space_check
 else
@@ -44,28 +44,31 @@ options_status () {
 	[ -f /root/.packages/download_path ] && [ "$DL_PATH" != "/root" ] && \
 	 MSG_DPATH="$(gettext 'Download packages in ')${DL_PATH}.
 	 $(gettext '')"
-	[ "$(cat /var/local/petget/install_mode)" = "true" ] && \
-	 MSG_TEMPFS="$(gettext 'Save istalled programs when we save to savefile.')
+	[ "$(cat /var/local/petget/install_mode 2>/dev/null)" = "true" ] && \
+	 MSG_TEMPFS="$(gettext 'Save installed programs when we save to savefile.')
 	 $(gettext '')"
-	[ "$(cat /var/local/petget/nt_category)" = "true" ] && \
+	[ "$(cat /var/local/petget/nt_category 2>/dev/null)" = "true" ] && \
 	 MSG_NOTERM="$(gettext 'Do NOT show terminal with PPM activity.')
 	 $(gettext '')"
-	[ "$(cat /var/local/petget/rd_category)" = "true" ] && \
+	[ "$(cat /var/local/petget/db_verbose 2>/dev/null)" = "false" ] && \
+	 MSG_NODBTERM="$(gettext 'No user input during database updating.')
+	 $(gettext '')" 
+	[ "$(cat /var/local/petget/rd_category 2>/dev/null)" = "true" ] && \
 	 MSG_REDOWNL="$(gettext 'Redownload packages when already downloaded.')
 	 $(gettext '')"
-	[ "$(cat /var/local/petget/nd_category)" = "true" ] && \
+	[ "$(cat /var/local/petget/nd_category 2>/dev/null)" = "true" ] && \
 	 MSG_SAVEPKG="$(gettext 'Do NOT delete packages after installation.')
 	 $(gettext '')"
 	[ "$MSG_SPACE" -o "$MSG_DPATH" -o "$MSG_TEMPFS" -o "$MSG_NOTERM" -o \
-	 "$MSG_REDOWNL" -o "$MSG_SAVEPKG" ] && \
-	  /usr/lib/gtkdialog/box_ok "$(gettext 'PPM config options')" info "$(gettext 'PPM is currently running with these configuration options:')
-	 ${MSG_SPACE}${MSG_DPATH}${MSG_NOTERM}${MSG_REDOWNL}${MSG_SAVEPKG}${MSG_TEMPFS}"
+	 "$MSG_REDOWNL" -o "$MSG_SAVEPKG" -o "$MSG_NODBTERM" ] && \
+	  . /usr/lib/gtkdialog/box_ok "$(gettext 'PPM config options')" info "$(gettext 'PPM is currently running with these configuration options:')
+	 ${MSG_SPACE}${MSG_DPATH}${MSG_NOTERM}${MSG_NODBTERM}${MSG_REDOWNL}${MSG_SAVEPKG}${MSG_TEMPFS}"
 }
 export -f options_status
 
-[ "$(cat /var/local/petget/si_category)" = "true" ] && options_status
+[ "$(cat /var/local/petget/si_category 2>/dev/null)" = "true" ] && options_status
 
-/usr/lib/gtkdialog/box_splash -close never -text "$(gettext 'Loading Puppy Package Manager...')" &
+. /usr/lib/gtkdialog/box_splash -close never -text "$(gettext 'Loading Puppy Package Manager...')" &
 SPID=$!
 
 # Remove in case we crashed
@@ -78,6 +81,7 @@ clean_flags () {
 	rm -f /tmp/force{,d}_install 2>/dev/null
 	rm -f /tmp/pkgs_to_install* 2>/dev/null
 	rm -f /tmp/pkgs_DL_BAD_LIST 2>/dev/null
+	unset SETUPCALLEDFROM
 }
 export -f clean_flags
 
@@ -210,7 +214,7 @@ change_mode () {
 
 installed_warning () {
 	FORCEDPKGS=$(cat /tmp/forced_install 2>/dev/null)
-	/usr/lib/gtkdialog/box_splash -timeout 10 -bg orange -fontsize large -text "$FORCEDPKGS $(gettext ' packages are already installed! Should be remove from the list. If you want to re-install, uninstall first and then install.')"
+	. /usr/lib/gtkdialog/box_splash -timeout 10 -bg orange -fontsize large -text "$FORCEDPKGS $(gettext ' packages are already installed! Should be remove from the list. If you want to re-install, uninstall first and then install.')"
 }
 export -f add_item add_item2 remove_item remove_item2 change_mode installed_warning
 
@@ -261,7 +265,7 @@ if [ ! -f /tmp/petget_installed_patterns_system ];then
  #120822 in precise puppy have a pet 'cups' instead of the ubuntu debs. the latter are various pkgs, including 'libcups2'.
  #we don't want libcups2 showing up as a missing dependency, so have to screen these alternative names out...
  case $DISTRO_BINARY_COMPAT in
-  ubuntu|debian|raspbian)
+  ubuntu|debian|devuan|raspbian)
    #for 'cups' pet, we want to create a pattern '/cups|' so can locate all debs with that DB_path entry '.../cups'
     INSTALLED_PTNS_PET="$(grep '\.pet|' /root/.packages/layers-installed-packages | cut -f 2 -d '|' | sed -e 's%^%/%' -e 's%$%|%' -e 's%\-%\\-%g')"
    if [ "$INSTALLED_PTNS_PET" != "/|" ];then
@@ -284,7 +288,7 @@ if [ -s /root/.packages/user-installed-packages ];then
  echo "$INSTALLED_PATTERNS_USER" >> /tmp/petget_installed_patterns_all
  #120822 find alt names in compat-distro pkgs, for user-installed pets...
  case $DISTRO_BINARY_COMPAT in
-  ubuntu|debian|raspbian)
+  ubuntu|debian|devuan|raspbian)
    #120904 bugfix, was very slow...
    MODIF1=`stat --format=%Y /root/.packages/user-installed-packages` #seconds since epoch.
    MODIF2=0
@@ -386,13 +390,13 @@ echo $1 > /tmp/petget/current-repo-triad
 chmod 777 /tmp/filterversion.sh
 
 #run the traditional ui if set in config
-if [ "$(</var/local/petget/ui_choice)" = "Classic" ]; then
+if [ "$(cat /var/local/petget/ui_choice 2>/dev/null)" = "Classic" ]; then
 	. /usr/local/petget/ui_Classic
 	exit 0
 fi
 
 #tall or wide orientation in the Ziggy UI
-UI_ORIENT="$(cat /var/local/petget/uo_choice)"
+UI_ORIENT="$(cat /var/local/petget/uo_choice 2>/dev/null)"
 [ "$UI_ORIENT" != "" ] && UI_ORIENT="$UI_ORIENT" || UI_ORIENT="wide"
 if [ "$UI_ORIENT" = "tall" ]; then
 	UO_1="800"
@@ -458,7 +462,7 @@ S='<window title="'$(gettext 'Puppy Package Manager v')''${VERSION}'" width-requ
       
         <text space-expand="true" space-fill="true"><label>""</label></text>
 
-        <entry width-request="80" activates-default="true" is-focus="true" secondary-icon-stock="gtk-find">
+        <entry width-request="80" activates-default="true" is-focus="true" primary-icon-stock="gtk-clear" secondary-icon-stock="gtk-find">
           <variable>ENTRY1</variable>
           <action signal="activate">/usr/local/petget/findnames.sh all</action>
           <action signal="activate">refresh:TREE1</action>
@@ -466,6 +470,7 @@ S='<window title="'$(gettext 'Puppy Package Manager v')''${VERSION}'" width-requ
           <action signal="secondary-icon-release">/usr/local/petget/findnames.sh all</action>
           <action signal="secondary-icon-release">refresh:TREE1</action>
           <action signal="secondary-icon-release">/usr/local/petget/show_installed_version_diffs.sh & </action>
+          <action signal="primary-icon-release">clear:ENTRY1</action>
         </entry>
       
         <text space-expand="true" space-fill="true"><label>""</label></text>
@@ -618,7 +623,7 @@ S='<window title="'$(gettext 'Puppy Package Manager v')''${VERSION}'" width-requ
               <item stock="gtk-Internet">'$(gettext 'Internet')'|Internet</item>
               <item stock="gtk-Multimedia">'$(gettext 'Multimedia')'|Multimedia</item>
               <item stock="gtk-Fun">'$(gettext 'Fun')'|Fun</item>'
-              [ "$(</var/local/petget/bb_category)" = "true" ] && S=$S'<item stock="gtk-BB">'$(gettext 'BuildingBlock')'|BuildingBlock</item>'
+              [ "$(cat /var/local/petget/bb_category 2>/dev/null)" = "true" ] && S=$S'<item stock="gtk-BB">'$(gettext 'BuildingBlock')'|BuildingBlock</item>'
               S=$S'<width>140</width><height>112</height>
               <action signal="changed">/usr/local/petget/filterpkgs.sh $CATEGORY</action>
               <action signal="changed">refresh:TREE1</action>

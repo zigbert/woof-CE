@@ -37,7 +37,7 @@ export OUTPUT_CHARSET=UTF-8
 . /root/.packages/PKGS_MANAGEMENT #has PKG_ALIASES_INSTALLED, PKG_NAME_ALIASES
 
 #130330 GUI filtering...
-DEFGUIFILTER="$(cat /var/local/petget/gui_filter)"
+DEFGUIFILTER="$(cat /var/local/petget/gui_filter 2>/dev/null)"
 #$GUIONLYSTR $ANYTYPESTR are exported from pkg_chooser.sh ... 130331 need backslashes...
 guigtk2PTN='\+libgtk2|\+libgtk\+2|\+libgtkmm-2|\+gtk\+2|\+gtk\+,|\+gtkdialog|\+xdialog|\+python-gtk2'
 guigtk3PTN='\+libgtk-3|\+libgtk\+3|\+libgtkmm-3|\+gtk\+3'
@@ -61,7 +61,7 @@ esac
 xDEFGUIFILTER="$(echo -n "$DEFGUIFILTER" | tr -d ' ' | tr -d '-' | tr -d '+' | tr -d ',')" #ex, translate 'Qt4 GUI apps only' to 'Qt4GUIappsonly'
 
 PKG_FIRST_CHAR='a-z0-9'
-/usr/lib/gtkdialog/box_splash -close never -text "$(gettext 'Please wait, processing all entries may take awhile...')" &
+. /usr/lib/gtkdialog/box_splash -close never -text "$(gettext 'Please wait, processing all entries may take awhile...')" &
 X1PID=$!
 
 #which repo...
@@ -93,7 +93,7 @@ categoryPATTERN="|${fltrCATEGORY}[;|]"
 #w460 filter out all 'language-' pkgs, too many (ubuntu/debian)...
 if [ ! -f /tmp/petget_fltrd_repo_${PKG_FIRST_CHAR}_${fltrCATEGORY}_${xDEFGUIFILTER}_Packages-${fltrREPO_TRIAD} ];then
  case $DISTRO_BINARY_COMPAT in
-  ubuntu|debian|raspbian)
+  ubuntu|debian|devuan|raspbian)
    FLTRD_REPO="`printcols $REPO_FILE 1 2 3 5 10 6 9 | grep -v -E '^lib|^language\\-' | grep -i "^[${PKG_FIRST_CHAR}]" | grep "$categoryPATTERN" | grep -i ${EXCPARAM} -E "$guiPTN" | sed -e 's%||$%|unknown|%'`" #130330  130331 ignore case.
   ;;
   *)
